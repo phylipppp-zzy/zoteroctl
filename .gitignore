@@ -1,0 +1,10 @@
+# 本地配置含 API key 和 WebDAV 密码，绝不提交
+.zoteroctl/
+config.json
+
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zoteroctl"
+version = "0.1.0"
+description = "Safe command-line management of a Zotero library via the Zotero Web API, with WebDAV file support"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+zoteroctl = "zoteroctl:main"
+
+[tool.setuptools]
+py-modules = ["zoteroctl"]
