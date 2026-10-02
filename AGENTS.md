@@ -5,4 +5,4 @@
 - `zoteroctl.py` 只用 Python 标准库，不引入第三方依赖。
 - 新增写操作必须默认只预览、加 `--apply` 才执行。写入时带 `If-Unmodified-Since-Version`；删除类操作要有 `--confirm-key`。
 - 新功能要在 `tests/mock_servers.py` 中补上对应的模拟接口，并在 `tests/test_cli.py` 中补测试。
-- 面向用户的提示和文档使用中文。
+- 命令行提示使用中文。README.md（英文）与 README.zh-CN.md（中文）内容保持同步，改一份就同步改另一份。

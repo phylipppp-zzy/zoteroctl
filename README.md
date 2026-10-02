@@ -1,94 +1,94 @@
 # zoteroctl
 
-用命令行（以及 AI 编程助手）安全地管理 Zotero 文献库：查询、新增条目、上传 PDF、写笔记、整理分类和标签、删除。
+English | [中文](README.zh-CN.md)
 
-*A safe, dependency-free command-line tool for managing a Zotero library through the Zotero Web API, with WebDAV file support. Every write is a dry run unless you pass `--apply`.*
+A safe, dependency-free command-line tool for managing a Zotero library through the Zotero Web API — built to be driven by you or by an AI coding assistant (Claude Code, Codex, …). Query items, add papers, upload PDFs, write notes, organize collections and tags, and delete things, with every write previewed first.
 
-- **只用 Python 标准库**，单文件，Python 3.9 及以上即可运行。
-- **写操作默认只预览**：不加 `--apply` 不会改动文献库；删除还要用 `--confirm-key` 再写一遍目标 key。
-- **带版本号写入**：文献库在读取之后被别处改过，写入会失败（HTTP 412），不会覆盖别人的修改。
-- **支持两种文件存储**：Zotero 官方存储，以及 WebDAV（坚果云、Seafile 等网盘）。上传后会重新下载并比对 md5。
-- **不需要安装 Zotero 桌面端**：直接操作云端文献库，桌面端同步后可见。
+- **Standard library only.** One Python file, Python 3.9+.
+- **Dry run by default.** Nothing changes until you add `--apply`. Deletions also require `--confirm-key <same key>`.
+- **Version-checked writes.** If the library changed since it was read, the write fails with HTTP 412 instead of overwriting someone else's edit.
+- **Two file backends.** Zotero Storage and WebDAV (Nextcloud, Seafile, Jianguoyun, …). Uploads are downloaded back and checked by MD5.
+- **No Zotero desktop needed.** It talks to your cloud library; the desktop app picks up the changes on its next sync.
 
-## 安装
+> The command-line messages and the agent guide are currently in Chinese. The commands and options are the same in any language.
+
+## Install
 
 ```bash
-git clone <仓库地址> zoteroctl
+git clone https://github.com/phylipppp-zzy/zoteroctl.git
 cd zoteroctl
-./zoteroctl --help              # 直接运行
-# 或安装成命令：pip install .   然后使用 zoteroctl
+./zoteroctl --help        # run in place
+# or: pip install .        # installs a `zoteroctl` command
 ```
 
-## 配置
+## Configure
 
 ### 1. Zotero API key
 
-在 <https://www.zotero.org/settings/keys> 新建 key，勾选 “Allow library access”、“Allow notes access” 和 “Allow write access”。然后运行：
+Create a key at <https://www.zotero.org/settings/keys> with library, notes and write access, then:
 
 ```bash
-zoteroctl configure          # 按提示粘贴 key，输入时不显示
-zoteroctl status             # 显示用户名、权限、条目数，确认配置成功
+zoteroctl configure      # paste the key when prompted (input is hidden)
+zoteroctl status         # shows user, permissions and item counts
 ```
 
-群组库：`zoteroctl configure --library-type group --library-id <群组ID>`。
+For a group library: `zoteroctl configure --library-type group --library-id <groupID>`.
 
-### 2. 配置保存在哪里
+### 2. Where the configuration lives
 
-zoteroctl 按以下顺序查找配置目录：
+zoteroctl looks for its configuration directory in this order:
 
-1. 环境变量 `ZOTEROCTL_HOME` 指定的目录；
-2. 从当前目录向上找到的第一个 `.zoteroctl/` 目录（与 git 查找 `.git` 的方式相同）；
-3. `~/.config/zoteroctl/`。
+1. `$ZOTEROCTL_HOME`
+2. the first `.zoteroctl/` directory found walking up from the current directory (like git looks for `.git`)
+3. `~/.config/zoteroctl/`
 
-只想让配置在某个工作目录内生效，就在该目录运行 `zoteroctl configure --here`。在这个目录及其子目录里运行时使用这份配置，在别处运行时找不到它。配置文件权限为 600，里面有 API key 和 WebDAV 密码，不要提交到 git。
+To keep a configuration scoped to one working directory, run `zoteroctl configure --here` there. It is then used only when you run zoteroctl inside that directory tree. The config file is created with mode 600 and contains your API key and WebDAV password — never commit it. `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` and `ZOTERO_LIBRARY_TYPE` override it temporarily.
 
-临时覆盖凭据可以用环境变量 `ZOTERO_API_KEY`、`ZOTERO_LIBRARY_ID`、`ZOTERO_LIBRARY_TYPE`。
+### 3. WebDAV (optional)
 
-### 3. WebDAV（可选）
-
-如果 Zotero 桌面端的“文件同步”选的是 WebDAV，那么 PDF 存放在你的 WebDAV 网盘里，而不在 Zotero 官方存储中。这时需要配置 WebDAV：
+If Zotero desktop syncs files via WebDAV, your PDFs live on your WebDAV server, not in Zotero Storage. Configure it:
 
 ```bash
-zoteroctl configure-webdav --url https://dav.jianguoyun.com/dav/
+zoteroctl configure-webdav --url https://dav.example.com/dav/
 ```
 
-- **地址**：填写 Zotero 设置里“网址”输入框的内容。Zotero 会在后面自动加 `/zotero/`，zoteroctl 也一样。如果你照抄了带 `/zotero/` 的完整地址，也能识别：zoteroctl 会检查两个可能的目录，选出含有 `lastsync.txt`（即 Zotero 同步过）的那个。
-- **用户名和密码**：与 Zotero 设置里的完全一致。坚果云要用“第三方应用密码”；用统一身份认证登录的 Seafile 网盘，通常要用在网盘设置里另外设置的 WebDAV 密码。
-- 配置成功后，`status` 显示 `file_storage: webdav: ...`。之后 `attach` 和 `fetch` 默认使用 WebDAV；要访问官方存储，加 `--storage zotero`。
+- **URL:** what you typed in the URL field of Zotero's sync settings. Zotero appends `/zotero/`, and so does zoteroctl. If you paste the full path including `/zotero/`, that works too: zoteroctl checks both candidate directories and picks the one containing `lastsync.txt`, i.e. the one Zotero actually syncs to.
+- **Username / password:** exactly the ones in Zotero's settings. Some providers require an app-specific password (Jianguoyun) or a separate WebDAV password (Seafile behind single sign-on).
+- After this, `status` shows `file_storage: webdav: ...`, and `attach` / `fetch` use WebDAV by default. Pass `--storage zotero` to use Zotero Storage instead.
 
-WebDAV 上传的过程：先在文献库里新建附件记录，再上传 `<附件KEY>.zip` 和 `<附件KEY>.prop`，接着把 md5 和修改时间写回附件记录，最后重新下载并比对 md5。桌面端下次同步时，会从 WebDAV 下载这个文件。
+A WebDAV upload creates the attachment item, uploads `<KEY>.zip` and `<KEY>.prop`, writes the MD5 and modification time back to the item, then downloads the file again to verify it. Zotero desktop fetches the file from WebDAV on its next sync.
 
-## 命令一览
+## Commands
 
-| 命令 | 作用 |
+| Command | What it does |
 |---|---|
-| `status` | 账号、权限、库版本、条目和分类数量、文件存储方式 |
-| `collections` | 列出分类：key、名称、父分类、条目数 |
-| `list [--query Q] [--collection K] [--tag T] [--all] [--full]` | 列出顶层条目；`--all` 包含附件、笔记和批注，`--full` 输出完整 JSON |
-| `get KEY` | 查看条目详情及其子对象；也可以查分类 |
-| `fetch ATTKEY DEST` | 下载附件；目标文件已存在时拒绝执行，下载后报告 md5 是否与记录一致 |
-| `snapshot [--out F]` | 导出全库元数据快照（不含 PDF 文件），用于批量修改前备份 |
-| `add ITEM.json` | 从 JSON 新增父条目（每批最多 10 条）。会检查字段名和分类 key，按题名提示可能重复的条目，并自动加上 `status:inbox` 标签 |
-| `attach ITEMKEY FILE.pdf --title T` | 上传 PDF 附件并校验 |
-| `note ITEMKEY FILE.html` | 新建一条子笔记（每次都新建，不会更新已有笔记） |
-| `collection NAME [--parent K]` | 新建分类 |
-| `update KEY [--fields F.json] [--tag T] [--remove-tag T] [--collection K]` | 修改字段；添加或移除标签；加入分类 |
-| `move-collection KEY NEWPARENT\|ROOT` | 移动分类；`ROOT` 表示移到顶层 |
-| `move-child KEY NEWPARENT` | 把附件或笔记挂到另一个父条目下 |
-| `delete KEY --confirm-key KEY` | 永久删除条目、附件或笔记。目标还有子对象时拒绝执行 |
-| `delete-collection KEY --confirm-key KEY [--include-subcollections]` | 删除分类（不删除其中的文献）。删除整棵分类树时从最底层往上逐个删除，并逐个确认 |
+| `status` | Account, permissions, library version, counts, file backend |
+| `collections` | Collections with key, name, parent, item count |
+| `list [--query Q] [--collection K] [--tag T] [--all] [--full]` | Top-level items; `--all` includes attachments, notes and annotations; `--full` prints the raw API JSON |
+| `get KEY` | One item and its children (also accepts a collection key) |
+| `fetch ATTKEY DEST` | Download an attachment. Refuses to overwrite an existing file; reports whether the MD5 matches the record |
+| `snapshot [--out F]` | Export all metadata (no files) as a backup before bulk edits |
+| `add ITEM.json` | Add parent items from Zotero API JSON (max 10 per batch). Checks field names and collection keys, flags possible duplicates by title, adds `status:inbox` |
+| `attach ITEMKEY FILE.pdf --title T` | Upload a PDF attachment and verify it |
+| `note ITEMKEY FILE.html` | Create a child note (always creates; never updates) |
+| `collection NAME [--parent K]` | Create a collection |
+| `update KEY [--fields F.json] [--tag T] [--remove-tag T] [--collection K]` | Edit fields; add or remove tags; add to a collection |
+| `move-collection KEY NEWPARENT\|ROOT` | Move a collection (`ROOT` = top level) |
+| `move-child KEY NEWPARENT` | Re-parent an attachment or note |
+| `delete KEY --confirm-key KEY` | Permanently delete an item, attachment or note. Refuses while it still has children |
+| `delete-collection KEY --confirm-key KEY [--include-subcollections]` | Delete a collection (its items are kept). Subtrees are deleted bottom-up, one collection at a time, and each deletion is verified |
 
-所有写命令都要加 `--apply` 才真正执行。示例：
+Every write command needs `--apply` to take effect:
 
 ```bash
 zoteroctl list --query 'reinforcement'
-zoteroctl add paper.json                 # 预览
-zoteroctl add paper.json --apply         # 执行
+zoteroctl add paper.json                 # preview
+zoteroctl add paper.json --apply         # write
 zoteroctl attach ABCD1234 paper.pdf --title 'Preprint PDF' --apply
 zoteroctl update ABCD1234 --tag status:reading --remove-tag status:inbox --apply
 ```
 
-`add` 的输入是 Zotero Web API 格式的 JSON，例如：
+`add` takes Zotero Web API JSON, for example:
 
 ```json
 {
@@ -103,50 +103,50 @@ zoteroctl update ABCD1234 --tag status:reading --remove-tag status:inbox --apply
 }
 ```
 
-`update --fields` 不能修改 `key`、`version`、`itemType`、`dateAdded`、`dateModified`、`tags`、`collections`、`parentItem`。标签用 `--tag`/`--remove-tag` 修改，分类用 `--collection` 修改，父条目用 `move-child` 修改。
+`update --fields` cannot change `key`, `version`, `itemType`, `dateAdded`, `dateModified`, `tags`, `collections` or `parentItem`. Use `--tag`/`--remove-tag`, `--collection` and `move-child` for those.
 
-## 让 AI 助手使用 zoteroctl
+## Using it from an AI assistant
 
-[docs/agent-guide.md](docs/agent-guide.md) 是给 Claude Code、Codex 等 AI 编程助手看的操作规范，内容包括：先读取现状再改动、先预览、分批执行、执行后回读核对，以及删除前要保全哪些内容。把它放进你的 `CLAUDE.md` 或 `AGENTS.md`，或者在里面引用它。
+[docs/agent-guide.md](docs/agent-guide.md) (in Chinese) is a set of operating rules for AI assistants: read the current state before changing anything, preview first, work in small batches, read back after writing, and keep attachments, notes and annotations safe before deleting. Copy it into your `CLAUDE.md` or `AGENTS.md`, or link to it from there.
 
-## 常见问题
+## Troubleshooting
 
-**Zotero 里“验证服务器”成功，`configure-webdav` 却报 401。**
-基本可以确定是密码输入有误。Zotero 的密码框即使点开眼睛图标显示了明文，复制也常常不生效，剪贴板里还是之前复制的内容，比如用户名。报错信息会显示本次收到的密码长度，和你的真实密码位数比一比就能判断。看清密码后用键盘手动输入。输入的密码与用户名完全相同时，zoteroctl 会直接提示。
+**Zotero's "Verify Server" succeeds but `configure-webdav` returns 401.**
+Almost always a password-entry problem. Copying from Zotero's password field often silently fails, even with the password revealed, so the clipboard still holds whatever you copied before — often the username. The error message shows the length of the password it received; compare that with your real password. Type the password by hand. zoteroctl also stops early if the password equals the username.
 
-**粘贴密码时多出几个字符。**
-有些终端在粘贴内容的前后自动加 `ESC[200~`、`ESC[201~` 这样的“括号粘贴”标记。zoteroctl 会自动去掉这些标记和其他控制字符，并提示前后的长度变化。
+**Pasted passwords gain extra characters.**
+Some terminals wrap pasted text in bracketed-paste markers (`ESC[200~` … `ESC[201~`). zoteroctl strips these and other control characters, and tells you when it did.
 
-**`configure-webdav` 提示“目录存在但没有 lastsync.txt”。**
-地址和账号都对，但 Zotero 可能还没往这里同步过文件，或者这个网盘不保存这个文件。如果目录里已经有很多 `.zip`/`.prop` 文件，可以忽略这条提示。
+**"Directory exists but has no lastsync.txt".**
+The URL and credentials are fine, but Zotero may not have synced files there yet, or your server does not keep that file. If the directory already holds many `.zip`/`.prop` files, you can ignore the warning.
 
-**`fetch` 从 Zotero 官方存储下载时返回 404。**
-改用 WebDAV 之后加入的附件，文件都在 WebDAV 上，官方存储里没有。配置 WebDAV 后再下载。所有用 zoteroctl 往同一个文献库上传文件的电脑，都要配置成同一种存储方式，否则上传的文件在桌面端打不开。
+**`fetch` from Zotero Storage returns 404.**
+After you switch to WebDAV, files for new attachments exist only on WebDAV. Configure WebDAV first. Every machine that uploads files to the same library with zoteroctl must use the same backend; otherwise the desktop app cannot open those files.
 
-**群组文库。**
-Zotero 的群组文库只能使用官方存储，不支持 WebDAV。
+**Group libraries.**
+Zotero group libraries can only store files in Zotero Storage; WebDAV is not supported for them.
 
-**名为“Addon Item”的条目和大量奇怪的笔记。**
-这类条目可能是 Zotero 插件存的数据，例如阅读时长统计。删除前先确认，删掉后插件的数据无法恢复。
+**An item called "Addon Item" with dozens of JSON-like notes.**
+Such items usually hold plugin data, for example reading-time statistics. Ask before deleting; the plugin's data cannot be recovered.
 
-**限流。**
-zoteroctl 会遵守 Zotero API 返回的 `Backoff` 和 `Retry-After` 头。网盘的 WebDAV 也有各自的限制（例如坚果云免费版每月上传流量有限），批量上传前先估算总大小。
+**Rate limits.**
+zoteroctl honours the Zotero API's `Backoff` and `Retry-After` headers. WebDAV providers have their own limits (for example, Jianguoyun's free plan caps monthly upload traffic), so estimate the total size before bulk uploads.
 
-## 局限
+## Limitations
 
-- 没有原位替换 PDF 的命令：先上传新附件并核验，再删除旧附件。旧附件上的批注不会自动转移。
-- 没有重命名分类、把条目移出分类的命令。
-- `delete` 调用 API 的 DELETE，属于永久删除，不经过回收站；删除附件记录后，WebDAV 或官方存储里的文件不会被清理。
-- 不解析 DOI 或 BibTeX：`add` 要求输入完整的条目 JSON。
+- No in-place PDF replacement: upload and verify the new attachment, then delete the old one. Annotations on the old file are not carried over.
+- No commands to rename a collection or to remove an item from a collection.
+- `delete` uses the API's DELETE: it is permanent and skips the trash. Deleting an attachment item does not remove its file from WebDAV or Zotero Storage.
+- No DOI or BibTeX resolution: `add` expects complete item JSON.
 
-## 开发
+## Development
 
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-测试会启动本地的模拟 Zotero API 和模拟 WebDAV 服务器，不需要真实账号。可以用环境变量 `ZOTEROCTL_API_BASE` 让 zoteroctl 连接其他 API 地址。
+The tests start local mock servers for the Zotero API and WebDAV, so no real account is needed. `ZOTEROCTL_API_BASE` points zoteroctl at a different API base URL.
 
-## 许可证
+## License
 
-待定。
+[MIT](LICENSE)
