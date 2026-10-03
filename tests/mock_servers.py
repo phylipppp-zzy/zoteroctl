@@ -17,6 +17,10 @@ TEMPLATES = {
 }
 TEMPLATES["conferencePaper"].update(conferenceName="", proceedingsTitle="", place="", publisher="")
 
+# 与真实 API 一致：只有 PDF、EPUB、网页快照附件可以请求 /children，其他附件返回 400
+CHILDREN_TYPES = ("application/pdf", "application/epub+zip", "text/html")
+CHILDREN_UNSUPPORTED = "/children can only be called on PDF, EPUB, and snapshot attachments"
+
 
 def new_key() -> str:
     return "".join(secrets.choice("ABCDEFGHIJKLMNPQRSTUVWXYZ23456789") for _ in range(8))
@@ -113,6 +117,9 @@ class ZoteroHandler(BaseHTTPRequestHandler):
             if key not in self.state.items:
                 return self.send(404)
             if m[2] == "/children":
+                d = self.state.items[key]
+                if d.get("itemType") == "attachment" and d.get("contentType") not in CHILDREN_TYPES:
+                    return self.send(400, raw=CHILDREN_UNSUPPORTED.encode())
                 return self.page([self.wrap_item(k) for k, d in self.state.items.items() if d.get("parentItem") == key], q)
             if m[2] == "/file":
                 if key not in self.state.files:

@@ -295,8 +295,28 @@ def read_json_file(path: str) -> Any:
         die(f"{path} 不是合法 JSON：{e}")
 
 
-def children_of(c: Client, key: str) -> list[dict[str, Any]]:
-    return c.get_all(f"/items/{key}/children", includeTrashed=1)
+# Zotero API 只允许对 PDF、EPUB、网页快照附件请求 /children，其他附件（如 .xpi、.docx）返回 400 和这段文字。
+CHILDREN_UNSUPPORTED = "/children can only be called on PDF, EPUB, and snapshot attachments"
+
+
+def children_of(c: Client, obj: dict[str, Any]) -> list[dict[str, Any]]:
+    """列出对象的子对象（含回收站中的）。obj 是 /items/KEY 返回的对象。
+
+    只有“对象是附件且 API 返回上面那段 400”时按“没有子对象”处理，其余错误照常报错。
+    """
+    key = obj["key"]
+    path = f"/items/{key}/children"
+    if obj["data"].get("itemType") == "attachment":
+        resp = c.call("GET", path, params={"includeTrashed": 1, "limit": PAGE, "start": 0}, ok=(200, 400))
+        if resp.status == 400:
+            text = resp.body.decode("utf-8", "replace")
+            if CHILDREN_UNSUPPORTED not in text:
+                die(f"HTTP 400 GET {path}: {text[:800]}")
+            return []
+        rows = resp.json()
+        if int(resp.header("Total-Results") or len(rows)) <= len(rows):
+            return rows
+    return c.get_all(path, includeTrashed=1)
 
 
 def require_confirm(args: argparse.Namespace, key: str) -> None:
@@ -454,7 +474,7 @@ def cmd_get(args: argparse.Namespace) -> None:
     obj = resp.json()
     result = {"object": "item", **obj}
     if not obj["data"].get("parentItem"):
-        result["children"] = [brief_item(ch) for ch in children_of(c, args.key)]
+        result["children"] = [brief_item(ch) for ch in children_of(c, obj)]
     out(result)
 
 
@@ -573,7 +593,7 @@ def cmd_attach(args: argparse.Namespace) -> None:
     title = args.title or pdf.stem
     stat = pdf.stat()
     md5 = md5_file(pdf)
-    siblings = [brief_item(ch) for ch in children_of(c, args.item)
+    siblings = [brief_item(ch) for ch in children_of(c, parent)
                 if ch["data"].get("itemType") == "attachment"]
     same = [s for s in siblings if s.get("title") == title]
     attach_obj = {"itemType": "attachment", "parentItem": args.item, "linkMode": "imported_file",
@@ -634,7 +654,7 @@ def cmd_note(args: argparse.Namespace) -> None:
     parent = c.item(args.item)
     if parent["data"].get("parentItem"):
         die(f"{args.item} 是子对象，不能作为笔记父条目")
-    notes = [brief_item(ch) for ch in children_of(c, args.item) if ch["data"].get("itemType") == "note"]
+    notes = [brief_item(ch) for ch in children_of(c, parent) if ch["data"].get("itemType") == "note"]
     obj = {"itemType": "note", "parentItem": args.item, "note": html, "tags": [], "relations": {}}
     if not args.apply:
         dry_run("新建子笔记（不是更新）", {"parent": {"key": args.item, "title": parent["data"].get("title")},
@@ -773,7 +793,7 @@ def cmd_delete(args: argparse.Namespace) -> None:
     if resp.status != 200:
         die(f"HTTP {resp.status}")
     obj = resp.json()
-    kids = [] if obj["data"].get("parentItem") and obj["data"].get("itemType") == "note" else children_of(c, args.key)
+    kids = [] if obj["data"].get("parentItem") and obj["data"].get("itemType") == "note" else children_of(c, obj)
     if kids:
         out({"target": brief_item(obj), "children": [brief_item(k) for k in kids]})
         die("目标仍有子对象（附件/笔记/批注），CLI 拒绝删除。请先保全并处理子对象（可用 move-child 改挂）。")

@@ -114,6 +114,48 @@ class CLITest(unittest.TestCase):
         self.run_cli("delete", child, "--confirm-key", child, "--apply")
         self.assertNotIn(child, self.state.items)
 
+    def standalone_attachment(self, filename: str, content_type: str) -> str:
+        """直接在模拟库里放一个没有父条目的附件（CLI 不提供新建独立附件的命令）。"""
+        key = mock_servers.new_key()
+        self.state.items[key] = {"key": key, "version": self.state.bump(), "itemType": "attachment",
+                                 "linkMode": "imported_file", "title": filename, "contentType": content_type,
+                                 "filename": filename, "tags": [], "relations": {}, "deleted": 1}
+        return key
+
+    # 真实 API 对非 PDF/EPUB/快照附件的 /children 请求返回 400，这不应导致 get/delete 失败
+    def test_get_non_pdf_standalone_attachment(self) -> None:
+        key = self.standalone_attachment("plugin.xpi", "application/x-xpinstall")
+        got = self.json_of("get", key)
+        self.assertEqual(got["key"], key)
+        self.assertEqual(got["children"], [])
+
+    def test_delete_non_pdf_standalone_attachment(self) -> None:
+        key = self.standalone_attachment("plugin.xpi", "application/x-xpinstall")
+        self.assertIn("[预览]", self.run_cli("delete", key, "--confirm-key", key).stdout)
+        self.assertIn(key, self.state.items)
+        res = self.json_of("delete", key, "--confirm-key", key, "--apply")
+        self.assertTrue(res["verified_absent"])
+        self.assertNotIn(key, self.state.items)
+
+    def test_children_other_400_still_fails(self) -> None:
+        # 只放过上面那一种 400；其他 400 照常报错，delete 不执行
+        key = self.standalone_attachment("paper.pdf", "application/pdf")
+        original = mock_servers.ZoteroHandler.do_GET
+
+        def bad_children(handler):
+            if handler.path.split("?")[0].endswith(f"/items/{key}/children"):
+                return handler.send(400, raw=b"Invalid 'includeTrashed' value")
+            original(handler)
+
+        mock_servers.ZoteroHandler.do_GET = bad_children
+        try:
+            p = self.run_cli("delete", key, "--confirm-key", key, "--apply", ok=False)
+            self.assertIn("400", p.stderr)
+            self.run_cli("get", key, ok=False)
+        finally:
+            mock_servers.ZoteroHandler.do_GET = original
+        self.assertIn(key, self.state.items)
+
     def test_delete_collection_tree_bottom_up(self) -> None:
         root = self.json_of("collection", "Root", "--apply")["created_collection"]
         mid = self.json_of("collection", "Mid", "--parent", root, "--apply")["created_collection"]
