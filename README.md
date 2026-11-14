@@ -109,6 +109,8 @@ zoteroctl update ABCD1234 --tag status:reading --remove-tag status:inbox --apply
 
 [docs/agent-guide.md](docs/agent-guide.md) (in Chinese) is a set of operating rules for AI assistants: read the current state before changing anything, preview first, work in small batches, read back after writing, and keep attachments, notes and annotations safe before deleting. Copy it into your `CLAUDE.md` or `AGENTS.md`, or link to it from there.
 
+Reading status from the Zotero Reading List plugin is stored in the parent item's Extra field, as two lines: `Read_Status: <status>` and `Read_Status_Date: <UTC timestamp>`. It is not a tag. To change it, use `get` to read the item, then `update --fields` with a JSON file, keeping the other Extra lines. The step-by-step procedure is in [docs/agent-guide.md](docs/agent-guide.md).
+
 ## Troubleshooting
 
 **Zotero's "Verify Server" succeeds but `configure-webdav` returns 401.**

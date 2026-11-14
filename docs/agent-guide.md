@@ -49,6 +49,24 @@ Zotero 里每个父条目、附件、笔记、分类都有独立的 key。题名
 - 不要让用户把 API key 或密码贴进对话。让用户自己在终端运行 `configure` / `configure-webdav`，这两个命令会提示输入，输入内容不显示。
 - WebDAV 返回 401、而 Zotero 桌面端验证能通过时，先看报错里给出的密码长度。常见原因是从 Zotero 密码框复制没有成功，剪贴板里还是用户名；不要先怀疑网络或服务器。
 
-## 7 可以直接放进 CLAUDE.md / AGENTS.md 的约定
+## 7 阅读状态（Reading List 插件）
+
+- 阅读状态由 Zotero Reading List 插件管理，存在父条目的 Extra 字段里，不是标签。Extra 中是两行：
+  - `Read_Status: <状态名>`
+  - `Read_Status_Date: <UTC 时间，ISO 8601，含毫秒，例如 2026-11-11T08:00:00.000Z>`
+- 不要用 `status:` 标签表示阅读状态，也不要用 `--tag` 添加插件的状态名标签（如 `To Read`）。插件开启标签同步时会自己添加这类标签，那是插件行为。
+- 状态名区分大小写。插件默认状态为 New、To Read、In Progress、Read、Not Reading；自定义状态的名字没有默认列表，要先问用户，不要自己编。本库实际使用 New、To Read、Read。
+- zoteroctl 没有阅读状态的专门命令，用 `get` 加 `update --fields` 完成：
+  1. 批量修改前先运行 `zoteroctl snapshot`。每批最多 10 条，串行执行，一批完成并核对后再做下一批。
+  2. 用 `zoteroctl get KEY` 读取该条的 `extra`，再从库中找一条已有 `Read_Status` 的条目，核对格式。确认只有一行 `Read_Status:`；多于一行时先报告，不自行决定保留哪一行。
+  3. 生成只含 `extra` 一个键的 JSON 文件，放在仓库外（如 `/home/zhangzy/tmp/`）。在 `extra` 中只替换 `Read_Status` 和 `Read_Status_Date` 两行（没有则追加），其他行原样保留、顺序不变。`--fields` 只接收 JSON 文件路径，不接收命令行字符串。
+  4. 先预览：`zoteroctl update KEY --fields 文件.json`（不加 `--apply`）。
+  5. 预览无误、用户授权后，加 `--apply` 执行。
+  6. 回读：`zoteroctl get KEY`，确认 `Read_Status` 只有一行且值正确，其他行没有变化。
+- 清除阅读状态：从 `extra` 中删掉这两行，再按上面的流程执行 update。
+- 遇到 412 版本冲突时，重新 `get` 读取，再重新计算 `extra`，不要沿用旧值。
+- 不要修改 Addon Item（J447GBCZ）。它是另一个插件的数据条目，不是阅读状态的存储。
+
+## 8 可以直接放进 CLAUDE.md / AGENTS.md 的约定
 
 > 使用 zoteroctl 管理 Zotero 文献库。先读取文献库和对象的现状，再按用户指定的范围新增、查询、修改或删除。优先复用已有父条目，使用真实 key。修改前给出具体预览，按用户已有的授权执行，执行后回读核对。删除前要说清对象及影响，并先保全附件、笔记和批注。添加标签或分类不等于替换。不要反复新建同一条笔记。遇到版本冲突时重新读取；执行失败后先检查实际结果。区分元数据存在、PDF 可读和全文已读三种状态。用户只要方案时，不执行任何写入。

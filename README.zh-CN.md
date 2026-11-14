@@ -109,6 +109,8 @@ zoteroctl update ABCD1234 --tag status:reading --remove-tag status:inbox --apply
 
 [docs/agent-guide.md](docs/agent-guide.md) 是给 Claude Code、Codex 等 AI 编程助手看的操作规范，内容包括：先读取现状再改动、先预览、分批执行、执行后回读核对，以及删除前要保全哪些内容。把它放进你的 `CLAUDE.md` 或 `AGENTS.md`，或者在里面引用它。
 
+Reading List 插件的阅读状态存放在父条目的 Extra 字段中，即 `Read_Status: <状态名>` 和 `Read_Status_Date: <UTC 时间>` 两行，不是标签。修改时先用 `get` 读取条目，再用 `update --fields` 传入 JSON 文件，并保留 Extra 中的其他行。详细步骤见 [docs/agent-guide.md](docs/agent-guide.md)。
+
 ## 常见问题
 
 **Zotero 里“验证服务器”成功，`configure-webdav` 却报 401。**
