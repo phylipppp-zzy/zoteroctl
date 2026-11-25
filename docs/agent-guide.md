@@ -59,7 +59,7 @@ Zotero 里每个父条目、附件、笔记、分类都有独立的 key。题名
 - zoteroctl 没有阅读状态的专门命令，用 `get` 加 `update --fields` 完成：
   1. 批量修改前先运行 `zoteroctl snapshot`。每批最多 10 条，串行执行，一批完成并核对后再做下一批。
   2. 用 `zoteroctl get KEY` 读取该条的 `extra`，再从库中找一条已有 `Read_Status` 的条目，核对格式。确认只有一行 `Read_Status:`；多于一行时先报告，不自行决定保留哪一行。
-  3. 生成只含 `extra` 一个键的 JSON 文件，放在仓库外（如 `/home/zhangzy/tmp/`）。在 `extra` 中只替换 `Read_Status` 和 `Read_Status_Date` 两行（没有则追加），其他行原样保留、顺序不变。`--fields` 只接收 JSON 文件路径，不接收命令行字符串。
+  3. 生成只含 `extra` 一个键的 JSON 文件，放在仓库外（如 `$HOME/tmp/`）。在 `extra` 中只替换 `Read_Status` 和 `Read_Status_Date` 两行（没有则追加），其他行原样保留、顺序不变。`--fields` 只接收 JSON 文件路径，不接收命令行字符串。
   4. 先预览：`zoteroctl update KEY --fields 文件.json`（不加 `--apply`）。
   5. 预览无误、用户授权后，加 `--apply` 执行。
   6. 回读：`zoteroctl get KEY`，确认 `Read_Status` 只有一行且值正确，其他行没有变化。
